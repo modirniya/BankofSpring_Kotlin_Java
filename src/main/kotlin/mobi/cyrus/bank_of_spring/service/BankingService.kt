@@ -1,11 +1,11 @@
 package mobi.cyrus.bank_of_spring.service
 
-import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedQueryList
 import mobi.cyrus.bank_of_spring.entity.SingleTableItem
 import mobi.cyrus.bank_of_spring.repository.DynamoDBRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import java.util.*
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Service
 class BankingService {
@@ -15,39 +15,51 @@ class BankingService {
 
 
     fun retrieveItem(accountId: String, transactionId: String? = null): SingleTableItem? =
-        singleTableItemsRepository.retrieveItem(accountId, transactionId ?: accountId)
+        singleTableItemsRepository.retrieve(accountId, transactionId ?: accountId)
 
     fun addAccount(
         item: SingleTableItem,
         partitionKey: String? = null
     ): SingleTableItem =
-        singleTableItemsRepository.storeItem(item.apply {
-            entityType.lowercase()
+        item.apply {
             pk = partitionKey ?: pk
             sk = pk
-            customerSince = Date().toString()
-        })
-
+            customerSince = getDate()
+            singleTableItemsRepository.store(this)
+            entityType.lowercase()
+        }
 
     fun addTransaction(
         item: SingleTableItem,
         accountId: String
     ): SingleTableItem =
-        singleTableItemsRepository.storeItem(item.apply {
-            entityType.lowercase()
-            transactionDate = Date().toString()
+        item.apply {
             pk = accountId
-        })
+            entityType.lowercase()
+            transactionDate = getDate()
+            val account = retrieveItem(accountId)
+            val balance = (account!!.balance.toDouble()) - amount.toDouble()
+            isApproved = balance >= 0
+            if (isApproved) {
+                // isApproved
+                account.balance = balance.toString()
+                addAccount(account, account.pk)
+            }
+            singleTableItemsRepository.store(this)
+        }
 
-
-    fun deleteItem(
-        accountId: String,
-        transactionId: String? = null,
+    fun deleteAccount(
+        accountId: String
     ): SingleTableItem? =
-        singleTableItemsRepository.deleteItem(accountId, transactionId ?: accountId)
+        singleTableItemsRepository.delete(accountId)
 
 
-    fun searchSSN(target: String): List<SingleTableItem?> =
-        singleTableItemsRepository.search(target)
+    fun findAccountBySSN(ssnNumber: String): List<SingleTableItem?> =
+        singleTableItemsRepository.search(ssn = ssnNumber)
+
+    fun findTransactionByDate(accountId: String, date: String): List<SingleTableItem?> =
+        singleTableItemsRepository.search(accountId, date)
+
+    fun getDate(): String = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
 }

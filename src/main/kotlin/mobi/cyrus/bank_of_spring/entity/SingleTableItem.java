@@ -1,7 +1,10 @@
 package mobi.cyrus.bank_of_spring.entity;
 
 import com.amazonaws.services.dynamodbv2.datamodeling.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
@@ -35,6 +38,9 @@ public class SingleTableItem {
     private String transactionDate;
 
     @DynamoDBAttribute
+    private Boolean isApproved;
+
+    @DynamoDBAttribute
     private String amount;
 
     @DynamoDBAttribute
@@ -55,6 +61,11 @@ public class SingleTableItem {
     @DynamoDBIndexHashKey(globalSecondaryIndexName = "gsi1")
     public String getSsn() {
         return ssn;
+    }
+
+    @DynamoDBIndexHashKey(globalSecondaryIndexName = "gsi2")
+    public String getTransactionDate() {
+        return transactionDate;
     }
 
     @DynamoDBHashKey(attributeName = "PK")
@@ -93,10 +104,6 @@ public class SingleTableItem {
         this.customerSince = customerSince;
     }
 
-    public String getTransactionDate() {
-        return transactionDate;
-    }
-
     public void setTransactionDate(String transactionDate) {
         this.transactionDate = transactionDate;
     }
@@ -107,5 +114,29 @@ public class SingleTableItem {
 
     public void setEntityType(String entityType) {
         this.entityType = entityType;
+    }
+
+    public Boolean getIsApproved() {
+        return isApproved;
+    }
+
+    public void setIsApproved(Boolean approved) {
+        isApproved = approved;
+    }
+
+    public String getBalance() {
+        return balance;
+    }
+
+    public void setBalance(String balance) {
+        this.balance = balance;
+    }
+
+    public String getAmount() {
+        return amount;
+    }
+
+    public void setAmount(String amount) {
+        this.amount = amount;
     }
 }

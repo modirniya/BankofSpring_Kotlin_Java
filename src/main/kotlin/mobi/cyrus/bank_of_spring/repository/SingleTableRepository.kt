@@ -2,7 +2,6 @@ package mobi.cyrus.bank_of_spring.repository
 
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression
-import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedQueryList
 import mobi.cyrus.bank_of_spring.entity.SingleTableItem
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Repository
@@ -13,37 +12,73 @@ class SingleTableRepository(
 ) :
     DynamoDBRepository<SingleTableItem> {
 
-    override fun retrieveItem(
+    override fun retrieve(
         partitionKey: String,
-        sortKey: String?
+        sortKey: String
     ): SingleTableItem? =
-        mapper.load(SingleTableItem::class.java, partitionKey, sortKey ?: partitionKey)
+        mapper.load(SingleTableItem::class.java, partitionKey, sortKey)
 
 
-    override fun storeItem(
+    override fun store(
         item: SingleTableItem
     ): SingleTableItem = item.also { mapper.save(it) }
 
-    override fun search(partitionKey: String): List<SingleTableItem?> {
+    override fun search(partitionKey: String?, date: String?, ssn: String?): List<SingleTableItem?> {
         /*val eav  = mapOf <String, AttributeValue>(
             ":ssn" to AttributeValue().withS(partitionKey)
         )*/
-        val keyObject = SingleTableItem()
-        keyObject.ssn = partitionKey
-        val queryExpression = DynamoDBQueryExpression<SingleTableItem>()
-        queryExpression.hashKeyValues = keyObject
-        queryExpression.indexName = "gsi1"
-        queryExpression.withConsistentRead(false)
-        val listResult = mutableListOf<SingleTableItem?>()
-        mapper.query(SingleTableItem::class.java, queryExpression)
-            .forEach { listResult.add(this.retrieveItem(it.pk, it.sk)) }
-        return listResult.toList()
+        if (partitionKey != null && date != null)
+            return findTransactionByDate(partitionKey, date)
+        if (ssn != null)
+            return findAccountBySSN(ssn)
+        return emptyList()
     }
 
-    override fun deleteItem(
-        partitionKey: String,
-        sortKey: String?
+    override fun delete(
+        partitionKey: String
     ): SingleTableItem? =
-        this.retrieveItem(partitionKey, sortKey ?: partitionKey)
+        this.retrieve(partitionKey, partitionKey)
             .also { mapper.delete(it) }
+
+    private fun getSSNQueryExpression(ssn: String): DynamoDBQueryExpression<SingleTableItem> =
+        DynamoDBQueryExpression<SingleTableItem>()
+            .apply {
+                hashKeyValues = SingleTableItem().apply { this.ssn = ssn }
+                indexName = "gsi1"
+                withConsistentRead(false)
+            }
+
+    private fun getTransactionByDateQueryExpression(
+        partitionKey: String,
+        date: String
+    ): DynamoDBQueryExpression<SingleTableItem> =
+        DynamoDBQueryExpression<SingleTableItem>()
+            .apply {
+                hashKeyValues = SingleTableItem().also {
+                    it.pk = partitionKey
+                    it.transactionDate = date
+                }
+                indexName = "gsi2"
+                keyConditionExpression
+                withConsistentRead(false)
+            }
+
+    private fun findAccountBySSN(ssn: String): List<SingleTableItem?> {
+        val tempResult = mutableListOf<SingleTableItem?>()
+        mapper.query(
+            SingleTableItem::class.java,
+            getSSNQueryExpression(ssn)
+        )
+            .forEach { tempResult.add(this.retrieve(it.pk, it.sk)) }
+        return tempResult
+    }
+
+    private fun findTransactionByDate(accountId: String, date: String): List<SingleTableItem?> {
+        val tempResult = mutableListOf<SingleTableItem?>()
+        mapper.query(
+            SingleTableItem::class.java,
+            getTransactionByDateQueryExpression(accountId, date)
+        ).forEach { tempResult.add(this.retrieve(it.pk, it.sk)) }
+        return tempResult
+    }
 }
